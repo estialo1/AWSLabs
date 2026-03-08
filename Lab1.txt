@@ -1,7 +1,7 @@
 Step 1
 Login into your github account, click on create a new repo
 Give your repo the name "intro-to-aws-labs"
-Ensure Public is selected 
+Ensure Public is selected
 Click create repository
 
 Step 2
@@ -13,7 +13,7 @@ Run command git clone https://github.com/awscloudessentials/intro-to-aws-lab.git
 Run command cd intro-to-aws-lab
 Run command ls -la to view content of local repo
 
-Step 3 
+Step 3
 Go to your Github account
 Create a personal access token in your Github account to enable you push the repo into your Personal account
 Kindly follow the steps in this link https://docs.github.com/en/enterprise-server@3.4/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
@@ -21,4 +21,93 @@ Kindly follow the steps in this link https://docs.github.com/en/enterprise-serve
 Step 4
 On your command line run git push <url of repo in step 1>
 Verify text file exits in your remote repo.
+
+Solution
+
+Step 1: Create a Repository on GitHub
+
+I logged into my account on GitHub and created a new repository.
+
+The following steps were taken:
+
+1. I clicked Create New Repository.
+2. I entered the repository name intro-to-aws-labs.
+3. I selected Public as the repository visibility.
+4. I clicked Create Repository.
+
+After the repository was created, I copied the repository URL which will be used later to push files to the remote repository.
+
+Step 2: Clone the AWS Lab Repository on the Local Machine
+
+On my local machine, I created a folder named AWSlabs and used it to store the lab files.
+
+First, I opened Visual Studio Code and opened the terminal.
+
+Since I was using Windows, the default terminal opened as PowerShell, so I switched it to WSL from the terminal dropdown.
+
+Next, I navigated to the directory where I wanted to create the folder and ran the following commands.
+
+Navigate to Desktop:
+
+cd /mnt/c/Users/$USER/Desktop
+
+Create the AWSlabs folder:
+
+mkdir AWSlabs
+
+Navigate into the folder:
+cd AWSlabs
+
+Clone the AWS lab repository:
+
+git clone https://github.com/awscloudessentials/intro-to-aws-lab.git
+
+The repository was successfully cloned to my local machine.
+
+Next, I entered the cloned repository:
+
+cd intro-to-aws-lab
+
+To view the contents of the repository including hidden files, I ran:
+
+ls
+This displayed the files inside the repository such as intro.txt.
+I used mv intro.txt Lab1.txt to rename the file
+
+Step 3: Create a Personal Access Token
+
+To enable authentication when pushing files to my GitHub repository, I created a Personal Access Token (PAT) on GitHub.
+
+The following steps were followed:
+
+1. I logged into my GitHub account.
+2. I navigated to Settings.
+3. I selected Developer Settings.
+4. I clicked Personal Access Tokens.
+5. I generated a new token with the required permissions.
+
+The personal access token will be used as the password when pushing files to GitHub.
+
+Step 4: Push the Repository to GitHub
+
+After preparing the repository locally, I pushed it to my remote GitHub repository.
+
+First, I connected the local repository to the remote repository created in Step 1:
+
+git remote add origin https://github.com/username/intro-to-aws-labs.git
+
+Then I pushed the files using the command:
+
+git push https://github.com/username/intro-to-aws-labs.git
+
+During authentication, I entered:
+
+GitHub username
+Personal Access Token** as the password.
+
+Verification
+
+Finally, I verified the upload by visiting my GitHub repository.
+
+I confirmed that the files from the cloned repository were successfully pushed and were visible in the remote repository.
 
