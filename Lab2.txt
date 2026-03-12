@@ -6,33 +6,37 @@ Step2  (Create a Key Pair)
 Login into your AWS Console
 Create a Key pair with name "Linux" and key file format ".pem"
 Download pem file into your local machine
-
-Step 3(Create Security group)
 Create a Security Group with name “PublicSG” and give it any description you prefer
 Select your default VPC
 With the following  Inbound rule
 Type      Source
 SSH         My IP
 HTTP       Anywhere IPv4
-HTTP       Anywhere IPv6
-
-Step 4 (Create a Launch Template)
 Create Launch template , give it a name and description you prefer.
 Select “Amazon Linux 2 AMI “ under Application and OS Images
-Select “t2micro “ for instance type
-Select your pre-created Key pair you created in step 2
-Select existing security group and select the one you created in step 3
+Select “t3micro “ for instance type
+Select your pre-created Key pair you created
+Select existing security group and select the one you created
 
-Open up the “Advanced details” tab and scroll to “User data” and paste the below script
-#!/bin/bash
-# Please make sure to launch Amazon Linux 2
+Step3 (ssh into Server)
+On your local machine log into the server using the keypair downloaded into your local machine
+Navigate to the location of the pem key and run the following commands
+chmod 400 <name of pem key>
+ssh -i <name of pem key> ec2user@<public-ip-address-of server>
+This gets you into the server
+
+Step4 (Set up page and nginx service)
+Run the following commands
 yum update -y
-yum install -y httpd
-systemctl start httpd
-systemctl enable httpd
-echo "Hello World from $(hostname -f)" > /var/www/html/index.html
-echo "Healthy" > /var/www/html/health.html
-Click create launch template
+yum install -y nginx
+systemctl start nginx
+systemctl enable nginx
+echo "Hello World from $(hostname -f)" | sudo tee /usr/share/nginx/html/index.html
+systemctl restart nginx
+On a fresh web page paste http://<public ip address of your Virtual machine>
+It should show Hello World from <public ip address of your Virtual machine>
+Share this http://<public ip address of your Virtual machine> on the WhatsApp group for confirmation
+Once confirmed, terminate the instance on you AWS Console
 
 Step 5 (Documentation)
 Modify and update every step you took to achieve the lab, that was not captured in the lab instruction in your local repo Lab2.txt file and save.
@@ -46,25 +50,75 @@ First, I navigated to the intro-to-aws-lab repository directory in the terminal 
 
 cd ~/Desktop/AWSlabs/intro-to-aws-lab
 
-After navigating to the directory, I pulled the latest changes from the remote repository to download the **Lab2.txt** file.
+After navigating to the directory, I pulled the latest changes from the remote repository to download the Lab2.txt file.
 git pull https://github.com/awscloudessentials/intro-to-aws-lab.git
 
-Once the file was downloaded, I opened **Lab2.txt** in Visual Studio Code to review the instructions and complete the required lab tasks.
+Once the file was downloaded, I opened Lab2.txt in Visual Studio Code to review the instructions and complete the required lab tasks.
+Next, I logged into the AWS Management Console and navigated to the EC2 Dashboard in order to create the required AWS resources such as the key pair, security group, and launch template.
+After creating the launch template, I launched an EC2 instance from the template to verify that the configuration worked correctly and that the user data script executed successfully..
 
-Next, I logged into the AWS Management Console and navigated to the **EC2 Dashboard** in order to create the required AWS resources such as the key pair, security group, and launch template.
+Setting Up Nginx Webpage on EC2
 
-After creating the launch template, I launched an EC2 instance from the template to verify that the configuration worked correctly and that the user data script executed successfully.
+Step 1 — SSH Into the EC2 Instance**
 
-To test the web server, I navigated to the **Instances** section in the EC2 dashboard, copied the **Public IPv4 address** of the running instance, and opened it in a web browser.
+1. Downloaded the key pair `Linux.pem` from AWS when creating the EC2 key pair.
+2. Opened WSL terminal and navigated to the location of the key:
 
-The browser successfully displayed the message:
+cd /mnt/c/Users/phantom/Downloads
 
-Hello World from <hostname>
+3. Copied the key into the WSL home directory
 
-This confirmed that the Apache web server was installed and running correctly on the instance.
 
-Finally, after updating the documentation in **Lab2.txt**, I staged, committed, and pushed the updated file to my personal repository on GitHub using the following commands:
+cp Linux.pem ~/
+cd ~
 
+4. Set proper permissions on the key:
+
+chmod 400 Linux.pem
+
+5. Connected to the EC2 instance using SSH:
+
+ssh -i Linux.pem ec2-user@<Public-IP>
+
+Once logged into the EC2 instance:
+
+sudo yum update -y to update the server
+
+sudo yum install -y nginx to install nginx
+
+sudo systemctl start nginx to start the nginx server
+
+sudo systemctl enable nginx to Enable nginx to start on boot
+
+sudo systemctl status nginx to Verify nginx is running
+**
+
+
+echo "Hello World from $(hostname -f)" | sudo tee /usr/share/nginx/html/index.html to Create a simple webpage for testing
+`$(hostname -f)` automatically inserts the EC2 internal hostname.
+
+echo "Hello World from Esther" | sudo tee /usr/share/nginx/html/index.html to show my name
+
+sudo systemctl restart nginx  Restarted nginx to apply changes
+
+curl http://localhost to test the webpage
+
+Output should show:
+
+Hello World from ip-172-31-xx-xx.ec2.internal
+Hello World from Esther
+
+2. From a browser:
+
+I Openened `http://13.220.177.100  (from AWS EC2 console)
+to Confirm that the page displays your message.
+I used exit command to leave the webserver and return to wsl terminal
+
+TO terminated the instance:
+
+I Navigated to EC2 → Instances → Select instance → Actions → Instance state → Terminate instance**
+
+STEP 5
 git add Lab2.txt
 git commit -m "launch template demo"
 git push origin main
