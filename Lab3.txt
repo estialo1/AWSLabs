@@ -1,0 +1,313 @@
+Step 1
+In VScode terminal,
+Navigate to the folder with name "AWSLabs"
+Run command git clone https://github.com/awscloudessentials/intro-to-aws-lab.git (this will clone this repo into your local machine)
+Run command cd intro-to-aws-lab
+Run command ls -la to view content of local repo
+Copy Lab2.txt into the folder "AWSLabs"
+Delete the cloned repo
+
+Step2  (Create a Virtual Server)
+Login into your AWS Console
+Create an EC2 instance with
+Select your default VPC
+With the following  Inbound rule
+Type      Source
+SSH         Anywhere
+HTTP       Anywhere IPv4
+Select “Amazon Linux 2023 AMI “ under Application and OS Images
+Select “t3micro “ for instance type
+Key pair with name "Linux" and key file format ".pem"
+Download pem file into your local machine
+Create a Security Group with name “PublicSG” and give it any description you prefer
+Scroll down to the section with userdata copy and paste this:
+
+#!/bin/bash
+# User data script for Amazon Linux 2023
+# Installs Apache and serves a custom HTML page
+
+# Update system packages
+dnf update -y
+
+# Install Apache HTTP server
+dnf install -y httpd
+
+# Write a custom HTML page
+cat > /var/www/html/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My EC2 Web Server</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f4f8;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 40px 60px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 { color: #232f3e; }
+        p  { color: #555; }
+        .badge {
+            display: inline-block;
+            background: #ff9900;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Hello from EC2! 🚀</h1>
+        <p>This page is served by Apache on Amazon Linux 2023.</p>
+        <span class="badge">Running on AWS</span>
+    </div>
+</body>
+</html>
+EOF
+
+# Enable httpd to start on reboot, then start it now
+systemctl enable httpd
+systemctl start httpd
+
+# Open a log entry so you can verify the script ran
+echo "User data script completed at $(date)" >> /var/log/user-data.log
+
+Then launch the instance.
+
+Step3
+On a fresh web page paste http://<public ip address of your Virtual machine>
+Share this http://<public ip address of your Virtual machine> on the WhatsApp group for confirmation
+Once confirmed, terminate the instance on you AWS Console
+
+Step 4 (Documentation)
+Modify and update every step you took to achieve the lab, that was not captured in the lab instruction in your local repo Lab2.txt file and save.
+On the terminal run command git add Lab2.txt
+Git commit -m “created a webserver using nginx service"
+Push to your github repo
+
+
+Solution
+## Step 1: Clone the Lab Repository
+
+1. I opened **Visual Studio Code** and launched the integrated terminal.
+
+2. I navigated to the AWSLabs folder located on my Desktop using the command:
+
+```bash
+cd ~/Desktop/AWSLabs
+```
+
+3. I cloned the lab repository from GitHub using:
+
+```bash
+git clone https://github.com/awscloudessentials/intro-to-aws-lab.git
+```
+
+4. The repository was successfully cloned to my local machine.
+
+---
+
+## Step 2: Access the Cloned Repository
+
+1. I navigated into the cloned repository using:
+
+```bash
+cd intro-to-aws-lab
+```
+
+2. I listed the contents of the repository to verify the files using:
+
+```bash
+ls -la
+```
+
+3. The repository contained files including:
+
+* Lab1.txt
+* Lab2.txt
+* README.md
+
+---
+
+## Step 3: Copy Lab2 File
+
+1. I copied the **Lab2.txt** file from the cloned repository into my **AWSLabs** directory using:
+
+```bash
+cp Lab2.txt ../
+```
+
+2. I returned to the AWSLabs directory using:
+
+```bash
+cd ..
+```
+
+3. I confirmed that **Lab2.txt** was successfully copied by running:
+
+```bash
+ls
+```
+
+---
+
+## Step 4: Delete the Cloned Repository
+
+After copying the required file, I deleted the cloned repository using the command:
+
+```bash
+rm -rf intro-to-aws-lab
+```
+
+This removed the cloned repository from my system while leaving **Lab2.txt** in the AWSLabs folder.
+
+# Step 5: Login to AWS Console
+
+1. I opened a web browser and logged into the **Amazon Web Services Management Console**.
+
+2. After logging in, I searched for and opened **Amazon EC2** from the services list.
+
+# Step 6: Launch an EC2 Instance
+
+1. From the EC2 dashboard, I clicked **Launch Instance**.
+
+2. I configured the instance with the following settings:
+
+### Instance Name
+
+```
+MyWebServer
+```
+
+### Application and OS Image
+
+```
+Amazon Linux 2023 AMI
+```
+
+### Instance Type
+
+```
+t3.micro
+```
+# Step 7: Create a Key Pair
+
+1. I created a new key pair with the following configuration:
+
+Name:
+```
+Linux
+```
+
+Key Pair Type:
+```
+RSA
+```
+
+Private Key File Format:
+.pem
+
+2. The **Linux.pem** file was automatically downloaded to my local machine.
+
+# Step 8: Configure Network Settings
+
+1. I selected the **Default VPC**.
+
+2. I created a new **Security Group** with the following details:
+
+Security Group Name:
+```
+PublicSG
+```
+
+Description:
+```
+Public access for web server
+```
+
+3. I added the following **Inbound Rules**:
+| Type | Source        |
+| ---- | ------------- |
+| SSH  | Anywhere      |
+| HTTP | Anywhere IPv4 |
+
+This allows remote login and public web access to the server.
+
+# Step 9: Add User Data Script
+1. I scrolled down to the **Advanced Details** section.
+
+2. In the **User Data** field, I pasted a script that automatically installs and starts the Apache web server.
+
+3. The script performs the following actions:
+* Updates the system packages
+* Installs the Apache HTTP server
+* Creates a custom HTML webpage
+* Starts the Apache service
+* Enables the service to start automatically on reboot
+
+This ensures that the web server runs automatically when the EC2 instance launches.
+# Step 10: Launch the Instance
+
+1. After completing the configuration, I clicked **Launch Instance**.
+
+2. The EC2 virtual machine was successfully created and started running.
+# Step 11: Access the Web Server
+
+1. I navigated to the **Instances** page in EC2.
+
+2. I copied the **Public IPv4 Address** of the instance.
+
+3. I opened a new browser tab and entered:
+
+4. The webpage displayed a message:
+```
+Hello from EC2!
+This page is served by Apache on Amazon Linux 2023
+```
+
+This confirmed that the web server was successfully deployed.
+
+Step 13: Terminate the EC2 Instance
+
+After confirmation, I terminated the EC2 instance to avoid unnecessary AWS charges.
+
+Steps followed:
+
+1. Navigated to **EC2 Instances**
+2. Selected the running instance
+3. Clicked Instance State
+4. Selected Terminate Instance
+
+Step 14: Commit Changes to GitHub
+
+After completing the lab, I updated the documentation in **Lab2.txt** and pushed the changes to my GitHub repository.
+
+Add file to staging
+
+bash
+git add Lab3.txt
+
+
+Commit changes
+
+bash
+git commit -m "created a webserver using nginx service"
+
+
+Push to repository
+git push origin main
