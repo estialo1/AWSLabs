@@ -1,0 +1,720 @@
+# AWS Networking Lab
+# Public & Private EC2 Instances with NAT Gateway + Apache Web Server
+
+---
+
+## What You Are Building
+
+A real AWS networking setup from scratch with:
+- A secure private network (VPC) with public and private subnets
+- A Public EC2 instance acting as a bastion host and reverse proxy
+- A Private EC2 instance running an Apache web server
+- A NAT Gateway allowing the private EC2 to reach the internet
+- Traffic flowing from your browser all the way to the private EC2
+
+Think of it like a secure office building:
+- The Internet Gateway is the main entrance door
+- The Public EC2 is the reception desk — visitors talk to it first
+- The NAT Gateway is a one-way exit — the back office can go out but nobody comes in that way
+- The Private EC2 is the back office — only reception can reach it directly
+
+Traffic flow:
+```
+Your Browser → Internet → IGW → Public EC2 (Reverse Proxy) → Private EC2 (Apache)
+```
+
+---
+
+## What You Will Build — Resource Summary
+
+| Resource        | Value / Setting       | Notes                                      |
+|-----------------|-----------------------|--------------------------------------------|
+| VPC             | 10.0.0.0/16           | Your isolated network in AWS               |
+| Public Subnet   | 10.0.1.0/24           | Hosts the Public EC2 and NAT Gateway       |
+| Private Subnet  | 10.0.2.0/24           | Hosts the Private EC2 (no direct internet) |
+| Internet Gateway| Attached to VPC       | Allows traffic in/out from the internet    |
+| NAT Gateway     | In Public Subnet      | Allows Private EC2 to reach internet (outbound only) |
+| Public EC2      | Ubuntu Server         | Bastion host — you SSH into this first     |
+| Private EC2     | Ubuntu Server         | Runs Apache web server with your HTML page |
+| Elastic IP      | Assigned to NAT GW    | Required by NAT Gateway                    |
+
+---
+
+## Prerequisites
+
+- An active AWS account
+- A terminal (Mac/Linux: built-in Terminal, Windows: Git Bash or WSL)
+- A .pem key pair file downloaded from AWS
+- Basic familiarity with the AWS Console
+
+Note: All steps in this lab use the AWS Management Console (the website).
+You do NOT need the AWS CLI for this lab.
+
+---
+
+## Part 1 — Create the VPC and Subnets
+
+A VPC (Virtual Private Cloud) is your own isolated network inside AWS.
+Think of it as your private plot of land in the cloud where you control
+everything — who comes in, what gets built, and how traffic moves around.
+
+### Step 1: Create the VPC
+
+1. Log in to the AWS Console and type VPC in the search bar at the top.
+2. Click VPC under Services.
+3. In the left sidebar, click Your VPCs.
+4. Click the orange Create VPC button.
+5. Fill in the following:
+
+   - Resources to create: VPC only
+   - Name tag: MyLabVPC
+   - IPv4 CIDR block: 10.0.0.0/16
+   - IPv6 CIDR block: No IPv6 CIDR block
+   - Tenancy: Default
+
+6. Click Create VPC.
+
+Note: The CIDR block 10.0.0.0/16 gives you 65,536 IP addresses inside
+your VPC. You will divide these into smaller groups called subnets.
+
+### Step 2: Create the Public Subnet
+
+A subnet is a smaller division of your VPC.
+The public subnet is the area directly accessible from the internet.
+
+1. In the left sidebar, click Subnets.
+2. Click Create subnet.
+3. Under VPC ID, select MyLabVPC.
+4. Fill in the following:
+
+   - Subnet name: PublicSubnet
+   - Availability Zone: us-east-1a (or any available zone)
+   - IPv4 subnet CIDR block: 10.0.1.0/24
+
+5. Click Create subnet.
+
+Warning: Do NOT click Add new subnet — create one subnet at a time
+to avoid confusion.
+
+### Step 3: Create the Private Subnet
+
+The private subnet will NOT be directly accessible from the internet.
+Your Apache web server will live here.
+
+1. Click Create subnet again.
+2. Under VPC ID, select MyLabVPC.
+3. Fill in the following:
+
+   - Subnet name: PrivateSubnet
+   - Availability Zone: us-east-1a (use the SAME zone as before)
+   - IPv4 subnet CIDR block: 10.0.2.0/24
+
+4. Click Create subnet.
+
+### Step 4: Enable Auto-Assign Public IPs on the Public Subnet
+
+This makes EC2 instances launched into the public subnet automatically
+get a public IP address — like automatically getting a street address
+when you move into a house.
+
+1. In the Subnets list, check the box next to PublicSubnet.
+2. Click the Actions dropdown and select Edit subnet settings.
+3. Check the box: Enable auto-assign public IPv4 address.
+4. Click Save.
+
+---
+
+## Part 2 — Create the Internet Gateway and NAT Gateway
+
+Think of these as two different doors into your network:
+- Internet Gateway — the main front door. Public traffic comes in and out here.
+- NAT Gateway — a one-way exit for the private area. The private EC2 can
+  go out to download software, but nobody outside can come in through it.
+
+### Step 5: Create and Attach the Internet Gateway
+
+1. In the left sidebar, click Internet gateways.
+2. Click Create internet gateway.
+3. Set the Name tag to MyLabIGW.
+4. Click Create internet gateway.
+5. On the next screen, click Actions → Attach to VPC.
+6. Select MyLabVPC from the dropdown.
+7. Click Attach internet gateway.
+
+Note: An IGW can only be attached to ONE VPC at a time.
+You will see it move from Detached to Attached status.
+
+### Step 6: Allocate an Elastic IP Address
+
+The NAT Gateway needs a fixed, permanent public IP address (Elastic IP).
+Think of it as reserving a dedicated phone number for the NAT Gateway.
+
+1. In the left sidebar, scroll down and click Elastic IPs.
+2. Click Allocate Elastic IP address.
+3. Leave all defaults and click Allocate.
+4. Note down the Elastic IP address assigned — you will use it in the next step.
+
+### Step 7: Create the NAT Gateway
+
+1. In the left sidebar, click NAT gateways.
+2. Click Create NAT gateway.
+3. Fill in the form as follows:
+
+   - Name: MyLabNATGateway
+   - Availability Mode: Zonal
+   - Subnet: PublicSubnet (IMPORTANT: must be the PUBLIC subnet)
+   - Connectivity type: Public
+   - Elastic IP: Select the Elastic IP you just allocated
+
+4. Click Create NAT gateway.
+
+Warning: The NAT Gateway takes 1-2 minutes to become Available.
+Wait until its status shows Available before moving on.
+
+---
+
+## Part 3 — Configure Route Tables
+
+Route tables are like GPS navigation for your network — they tell AWS
+which door traffic should use when going somewhere.
+You need one route table for each subnet.
+
+### Step 8: Create and Configure the Public Route Table
+
+1. In the left sidebar, click Route tables.
+2. Click Create route table.
+3. Fill in:
+
+   - Name: PublicRouteTable
+   - VPC: MyLabVPC
+
+4. Click Create route table.
+5. With the new route table selected, click the Routes tab at the bottom.
+6. Click Edit routes → Add route and fill in:
+
+   - Destination: 0.0.0.0/0
+   - Target: Internet Gateway → MyLabIGW
+
+7. Click Save changes.
+8. Click the Subnet associations tab → Edit subnet associations.
+9. Check the box for PublicSubnet.
+10. Click Save associations.
+
+Note: 0.0.0.0/0 means all internet traffic. By pointing it to the IGW,
+any instance in the public subnet can reach the internet.
+
+### Step 9: Create and Configure the Private Route Table
+
+1. Click Create route table again.
+2. Fill in:
+
+   - Name: PrivateRouteTable
+   - VPC: MyLabVPC
+
+3. Click Create route table.
+4. Click the Routes tab → Edit routes → Add route and fill in:
+
+   - Destination: 0.0.0.0/0
+   - Target: NAT Gateway → MyLabNATGateway
+
+5. Click Save changes.
+6. Click Subnet associations tab → Edit subnet associations.
+7. Check PrivateSubnet and click Save associations.
+
+Note: The private subnet's traffic goes to the NAT Gateway, not the IGW.
+This means the private EC2 can connect OUT to the internet (e.g. to install
+packages) but nobody from the internet can connect IN to it directly.
+
+---
+
+## Part 4 — Create Security Groups
+
+Security groups are like bouncers at the door — they decide which
+traffic is allowed in and out of your EC2 instances.
+
+### Step 10: Create the Public EC2 Security Group
+
+1. In the left sidebar, click Security Groups (under Security).
+2. Click Create security group.
+3. Fill in:
+
+   - Security group name: PublicSG
+   - Description: Security group for public EC2 instance
+   - VPC: MyLabVPC
+
+4. Under Inbound rules, add the following two rules:
+
+   Type  | Protocol | Port | Source
+   ------|----------|------|---------------------------
+   SSH   | TCP      | 22   | 0.0.0.0/0 (or your IP only for better security)
+   HTTP  | TCP      | 80   | 0.0.0.0/0
+
+5. Leave Outbound rules as default (All traffic allowed out).
+6. Click Create security group.
+
+### Step 11: Create the Private EC2 Security Group
+
+1. Click Create security group again.
+2. Fill in:
+
+   - Security group name: PrivateSG
+   - Description: Security group for private EC2 instance
+   - VPC: MyLabVPC
+
+3. Under Inbound rules, add the following two rules:
+
+   Type  | Protocol | Port | Source
+   ------|----------|------|-------------------------------
+   SSH   | TCP      | 22   | PublicSG (select the security group, not an IP)
+   HTTP  | TCP      | 80   | PublicSG (HTTP from within VPC only)
+
+4. Click Create security group.
+
+Note: By setting the SSH source to PublicSG, only instances in the
+public security group can SSH into the private instance. This prevents
+anyone on the internet from directly reaching your private EC2.
+This is called SG-to-SG access and is the industry standard.
+
+---
+
+## Part 5 — Launch the EC2 Instances
+
+You will launch two EC2 instances — one public-facing bastion host
+and one private instance that will host your Apache web server.
+
+Important: You need a key pair (.pem file) to SSH into your instances.
+If you do not already have one, create one now:
+EC2 → Key Pairs → Create key pair.
+Download the .pem file and save it safely — you cannot download it again.
+
+### Step 12: Launch the Public EC2 Instance
+
+1. Search for EC2 in the AWS Console and go to the EC2 service.
+2. Click Instances in the left sidebar, then click Launch instances.
+3. Fill in the following settings:
+
+   - Name: PublicEC2
+   - AMI: Ubuntu Server 22.04 LTS
+   - Instance type: t2.micro (Free Tier eligible)
+   - Key pair: select your existing key pair
+   - Network settings (click Edit):
+     - VPC: MyLabVPC
+     - Subnet: PublicSubnet
+     - Auto-assign public IP: Enable
+     - Security group: select existing → PublicSG
+
+4. Leave storage as default (8 GB).
+5. Click Launch instance.
+
+### Step 13: Launch the Private EC2 Instance
+
+1. Click Launch instances again.
+2. Fill in the following settings:
+
+   - Name: PrivateEC2
+   - AMI: Ubuntu Server 22.04 LTS
+   - Instance type: t2.micro
+   - Key pair: select the SAME key pair as before
+   - Network settings (click Edit):
+     - VPC: MyLabVPC
+     - Subnet: PrivateSubnet
+     - Auto-assign public IP: Disable
+     - Security group: select existing → PrivateSG
+
+3. Click Launch instance.
+4. Wait for both instances to show Status check: 2/2 checks passed
+   before proceeding.
+
+Warning: Write down the Private IP address of PrivateEC2 now.
+You will need it to SSH into it from the public instance.
+It will look something like 10.0.2.xxx.
+Find it by clicking on PrivateEC2 in the instances list.
+
+---
+
+## Part 6 — Connect via SSH to Both Instances
+
+Since the Private EC2 has no public IP, you cannot connect to it directly.
+Instead you will:
+1. SSH into the Public EC2 first (it has a public IP)
+2. Copy your .pem key file onto the Public EC2 using SCP
+3. SSH from the Public EC2 into the Private EC2
+
+Think of it like: to get into the server room, you must
+check in at the front desk first.
+
+SCP (Secure Copy Protocol) lets you copy files securely over SSH.
+You will use it to transfer your .pem key from your local machine
+to the Public EC2, so you can use it to reach the Private EC2.
+
+### Step 14: Set Key Permissions and SSH into the Public EC2
+
+Open your terminal and run these commands.
+Replace the filename and IP with your actual values:
+```
+# Step 1: Move your key to your home directory if needed
+cp /path/to/your-key-name.pem ~/
+
+# Step 2: Set correct permissions on the key file (REQUIRED)
+chmod 400 ~/your-key-name.pem
+
+# Step 3: SSH into the Public EC2
+# Replace PUBLIC_EC2_IP with the actual public IP
+ssh -i ~/your-key-name.pem ubuntu@PUBLIC_EC2_IP
+```
+
+Type yes when prompted. Your prompt should change to:
+```
+ubuntu@ip-10-0-1-xxx:~$
+```
+
+Warning: The chmod 400 command makes your key file read-only.
+SSH will refuse to connect if your key file has open permissions.
+Never use sudo with chmod on your own key files.
+
+Note: On Ubuntu servers the default username is ubuntu.
+Always use ubuntu@YOUR_IP (not ec2-user like Amazon Linux).
+
+### Step 15: Copy the Key to the Public EC2 Using SCP
+
+Open a SECOND terminal window on your local machine.
+Do not close the SSH session.
+Run this SCP command to copy your key file onto the Public EC2:
+```
+# Run this from your LOCAL machine (not from inside the EC2)
+# Replace PUBLIC_EC2_IP with the actual public IP of PublicEC2
+scp -i ~/your-key-name.pem ~/your-key-name.pem ubuntu@PUBLIC_EC2_IP:~/
+```
+
+You should see a progress output like:
+```
+your-key-name.pem    100% 1678   xx.x KB/s   00:00
+```
+
+### Step 16: SSH into the Private EC2 from the Public EC2
+
+Switch back to the terminal connected to the Public EC2 and run:
+```
+# Set correct permissions on the copied key file
+chmod 400 ~/your-key-name.pem
+
+# SSH into the Private EC2
+# Replace PRIVATE_EC2_IP with the Private IP of PrivateEC2 (e.g. 10.0.2.xxx)
+ssh -i ~/your-key-name.pem ubuntu@PRIVATE_EC2_IP
+```
+
+You should now be inside the Private EC2.
+Your terminal prompt will change to something like:
+```
+ubuntu@ip-10-0-2-xxx:~$
+```
+
+Verify you are on the right machine:
+```
+hostname -I
+# Should output a 10.0.2.xxx address
+```
+
+---
+
+## Part 7 — Install Apache and Create the Web Page
+
+You will install Apache on BOTH EC2 instances:
+- On the Private EC2: Apache serves the actual HTML page
+- On the Public EC2: Apache acts as a Reverse Proxy, forwarding
+  browser requests from the internet to the private EC2
+
+A Reverse Proxy means the Public EC2 sits in front of the Private EC2.
+Users only ever talk to the Public EC2, which quietly forwards their
+request to the Private EC2 behind the scenes.
+
+### Step A — Set Up Apache on the Private EC2
+
+Make sure your terminal prompt shows a 10.0.2.xxx IP address,
+confirming you are on the PRIVATE EC2.
+
+### Step 17: Install Apache on the Private EC2
+```
+# Update all packages
+sudo apt update -y
+
+# Install Apache
+sudo apt install -y apache2
+
+# Start and enable Apache (auto-starts on reboot)
+sudo systemctl start apache2
+sudo systemctl enable apache2
+
+# Verify Apache is running
+sudo systemctl status apache2 --no-pager
+```
+
+You should see active (running) in green. Press Q to exit.
+
+Note: Ubuntu uses apache2 as the service name and apt as the
+package manager. This is different from Amazon Linux which uses
+httpd and dnf.
+
+### Step 18: Create Your Custom HTML Web Page
+
+Run this entire block as one command to create the HTML file:
+```
+sudo bash -c 'cat > /var/www/html/index.html << EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My AWS Lab Page</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #1a3c5e;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background-color: #2e6da4;
+      padding: 40px 60px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    h1 { font-size: 2.5em; margin-bottom: 10px; }
+    p { font-size: 1.2em; color: #d6e8f7; }
+    .badge {
+      display: inline-block;
+      background: #e07b2a;
+      color: white;
+      padding: 6px 18px;
+      border-radius: 20px;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Hello from the Private EC2!</h1>
+    <p>This page is served by Apache running on a <strong>private subnet</strong>.</p>
+    <p>Traffic reached here via: Internet → IGW → Public EC2 → Private EC2</p>
+    <div class="badge">AWS Networking Lab Complete 🎉</div>
+  </div>
+</body>
+</html>
+EOF'
+```
+
+### Step 19: Verify Apache is Serving the Page Locally
+
+While still on the Private EC2, run:
+```
+curl http://localhost
+```
+
+You should see the HTML code printed in your terminal.
+This confirms Apache is working correctly on the Private EC2.
+
+Now type exit to return to the Public EC2:
+```
+exit
+# Your prompt should now show the public EC2 IP (e.g. ip-10-0-1-xxx)
+```
+
+### Step B — Set Up Apache as a Reverse Proxy on the Public EC2
+
+You are now back on the Public EC2.
+You will install Apache here and configure it to forward
+all incoming traffic to the Private EC2.
+
+### Step 20: Install Apache on the Public EC2
+```
+# Update packages
+sudo apt update -y
+
+# Install Apache
+sudo apt install -y apache2
+
+# Start and enable Apache
+sudo systemctl start apache2
+sudo systemctl enable apache2
+```
+
+### Step 21: Enable the Required Proxy Modules
+
+Apache needs these modules enabled before it can act as a reverse proxy:
+```
+sudo a2enmod proxy
+sudo a2enmod proxy_http
+```
+
+### Step 22: Configure the Reverse Proxy
+
+Create a proxy configuration file.
+Replace PRIVATE_EC2_IP with the actual private IP of your
+Private EC2 instance (e.g. 10.0.2.239):
+```
+sudo bash -c 'cat > /etc/apache2/sites-available/proxy.conf << EOF
+<VirtualHost *:80>
+  ProxyPreserveHost On
+  ProxyPass "/" "http://PRIVATE_EC2_IP/"
+  ProxyPassReverse "/" "http://PRIVATE_EC2_IP/"
+</VirtualHost>
+EOF'
+```
+
+Enable the proxy site and disable the default Apache page:
+```
+# Enable the proxy config
+sudo a2ensite proxy.conf
+
+# Disable the default site to avoid conflicts
+sudo a2dissite 000-default.conf
+
+# Test the configuration for errors
+sudo apache2ctl configtest
+# You should see: Syntax OK
+
+# Restart Apache to apply the config
+sudo systemctl restart apache2
+```
+
+Warning: If you see Syntax OK you are good to proceed.
+If you see any errors, double-check that you replaced PRIVATE_EC2_IP
+with the actual IP address (e.g. 10.0.2.239) in the proxy.conf file.
+
+---
+
+## Part 8 — Test the Full Traffic Flow
+
+Your setup is now complete. Time to verify the entire traffic path
+works from browser all the way to the Private EC2.
+
+### Step 23: Test the Reverse Proxy from the Public EC2
+
+While logged into the Public EC2, run:
+```
+curl http://localhost
+```
+
+You should see your HTML page content printed in the terminal.
+This confirms the reverse proxy is correctly forwarding requests
+to the Private EC2.
+
+### Step 24: View the Web Page in Your Browser
+
+Open any web browser on your local machine and visit:
+```
+http://YOUR_PUBLIC_EC2_IP
+```
+
+You should see the styled web page with the message:
+Hello from the Private EC2!
+
+Warning: Always use http:// not https:// — you have not set up
+an SSL certificate in this lab so the page will not load over https.
+
+If the page loads successfully you have completed the full traffic flow:
+```
+Your Browser → Internet → IGW → Public EC2 (Reverse Proxy) → Private EC2 (Apache) → HTML Page
+```
+
+Congratulations! You have successfully built a two-tier AWS architecture
+with public and private subnets, a NAT Gateway, and a reverse proxy.
+This is a pattern used in real-world production environments.
+
+---
+
+## Part 9 — Clean Up (IMPORTANT — Do This When Done)
+
+AWS charges for running resources. Always delete everything after
+the lab to avoid unexpected charges on your account.
+
+Important: A NAT Gateway alone charges approximately $0.045/hour
+plus data transfer fees. Always clean up after a lab.
+
+Delete in this exact order — some resources depend on others
+and cannot be deleted first:
+
+1. EC2 Instances — Terminate PublicEC2 and PrivateEC2
+2. NAT Gateway — Delete MyLabNATGateway (wait until status shows Deleted)
+3. Elastic IP — Release the Elastic IP address
+4. Internet Gateway — Detach from VPC first, then delete
+5. Subnets — Delete PublicSubnet and PrivateSubnet
+6. Route Tables — Delete PublicRouteTable and PrivateRouteTable
+7. Security Groups — Delete PublicSG and PrivateSG
+8. VPC — Delete MyLabVPC
+
+### How to Terminate EC2 Instances
+
+1. Go to EC2 → Instances
+2. Select both instances
+3. Click Instance state → Terminate instance
+4. Confirm termination
+
+### How to Delete the NAT Gateway
+
+1. Go to VPC → NAT gateways
+2. Select MyLabNATGateway → Actions → Delete NAT gateway
+3. Wait for status to show Deleted before releasing the Elastic IP
+
+Warning: You MUST wait for the NAT Gateway to be fully deleted
+before releasing the Elastic IP, or you will get an error.
+
+---
+
+## Troubleshooting
+
+**Cannot SSH into Public EC2**
+- Confirm port 22 is open in PublicSG inbound rules.
+- Confirm you used chmod 400 on your .pem file before connecting.
+- Make sure you are using ubuntu@ not ec2-user@.
+
+**Cannot SSH into Private EC2 from Public EC2**
+- Confirm you copied the .pem file to the Public EC2 using SCP.
+- Confirm you ran chmod 400 on the copied .pem file on the Public EC2.
+- Confirm PrivateSG allows SSH from PublicSG (not from 0.0.0.0/0).
+
+**Web page not loading in browser**
+- Confirm port 80 is open in PublicSG inbound rules from 0.0.0.0/0.
+- Check Apache is running on the Public EC2:
+```
+  sudo systemctl status apache2
+```
+- Confirm you replaced PRIVATE_EC2_IP in the proxy.conf file.
+- Always use http:// not https://
+
+**curl http://localhost returns empty or connection refused**
+- Apache may not be running. Start it:
+```
+  sudo systemctl start apache2
+```
+- Check the proxy modules are enabled:
+```
+  sudo a2enmod proxy proxy_http
+  sudo systemctl restart apache2
+```
+
+**Private EC2 cannot install packages (no internet)**
+- Confirm the NAT Gateway status is Available in the AWS Console.
+- Confirm the PrivateRouteTable has a route 0.0.0.0/0 pointing to the NAT Gateway.
+- Confirm PrivateSubnet is associated with PrivateRouteTable.
+
+---
+
+## Important Reminders
+
+- Do NOT stop or terminate your EC2 instances while you still need
+  to verify or demonstrate the lab.
+- Always use http:// not https:// — no SSL certificate is set up.
+- Always clean up all resources after the lab to avoid AWS charges.
+- The NAT Gateway is the most expensive resource in this lab —
+  delete it first when cleaning up.
+
+---
+
+*End of lab.*

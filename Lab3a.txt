@@ -217,5 +217,4 @@ I staged, committed, and pushed my changes:
 ``bash
 git add Lab3a.txt
 git commit -m "Updated Lab3a documentation"
-git push origin main
 ``
